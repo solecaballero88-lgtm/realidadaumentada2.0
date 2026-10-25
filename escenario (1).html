@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Charla en el monte — Don Algarrobo, el Profesor Lechu y Botín</title>
+<meta name="description" content="Tres personajes digitales del monte formoseño charlan por turnos sobre la naturaleza.">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{background:linear-gradient(#5fb0e8 0%,#a9d9f2 55%,#fdeec2 100%)}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+header{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 14px 6px;text-align:center;pointer-events:none}
+h1{margin:0;font:700 clamp(1rem,3.2vw,1.7rem)/1.15 Georgia,"Times New Roman",serif;color:#3b2412;text-shadow:0 1px 0 #fff8,0 2px 8px #fff9}
+header p{margin:2px 0 0;font-size:clamp(.72rem,2.2vw,.9rem);color:#4a3a1f;font-style:italic;text-shadow:0 1px 6px #fffa}
+#panel{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;flex-direction:column;align-items:center;gap:7px;background:linear-gradient(transparent,#25301ad6 40%)}
+#who{font-weight:800;font-size:1rem;min-height:1.3em;text-shadow:0 1px 4px #000a}
+#cap{min-height:3.8em;max-width:700px;text-align:center;color:#fff;font-size:clamp(.92rem,2.8vw,1.08rem);line-height:1.35;text-shadow:0 1px 4px #000a}
+#status{color:#ffe9a8;font-weight:600;font-size:.9rem;text-shadow:0 1px 4px #000a;text-align:center}
+.btns{display:flex;gap:10px}
+button{font:700 clamp(1rem,3.4vw,1.15rem) system-ui,sans-serif;border:0;border-radius:999px;padding:13px 26px;cursor:pointer;min-height:50px;box-shadow:0 4px 14px #0006}
+#go{background:#f2a93b;color:#3b2412}
+#go:hover:not(:disabled){background:#ffbb55}
+#stop{background:#fff;color:#8a2a1a;display:none}
+button:disabled{opacity:.6;cursor:wait}
+button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#ia{color:#e9f3d8;font-size:.76rem;text-align:center;max-width:620px;line-height:1.3}
+#ia b{background:#fff3;border-radius:6px;padding:1px 6px}
+.volver{position:fixed;z-index:20;top:calc(env(safe-area-inset-top,0px) + 8px);left:10px;background:#fffd;color:#2b1d10;text-decoration:none;font:700 .85rem system-ui,sans-serif;border-radius:999px;padding:7px 13px;box-shadow:0 2px 8px #0003}.volver:focus-visible{outline:3px solid #f2a93b}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+</head>
+<body>
+<a class="volver" href="index.html">← Inicio</a>
+<canvas id="c" aria-label="Don Algarrobo, el Profesor Lechu y Botín en el monte formoseño"></canvas>
+<header>
+  <h1>Charla en el monte</h1>
+  <p>Don Algarrobo, el Profesor Lechu y Botín hablan por turnos sobre la naturaleza</p>
+</header>
+<div id="panel">
+  <div id="who"></div>
+  <div id="cap" aria-live="polite"></div>
+  <div id="status">Tocá «Comenzar la charla» y mirá a los tres amigos conversar</div>
+  <div class="btns"><button id="go">▶ Comenzar la charla</button><button id="stop">Detener</button></div>
+  <div id="ia"><b>IA</b> Son personajes ficticios creados con inteligencia artificial. Cada uno habla con la voz de su agente de ElevenLabs, de a uno por vez. El micrófono queda silenciado: solo se pide permiso porque el sistema de voz lo exige.</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ====== CONFIGURACIÓN (IDs públicos de agentes, no son claves) ====== */
+const AG = {algarrobo: 'agent_2701m5hrpabffjmvxtpfft9ywr8x', lechu: 'agent_1101m5k81rs0eyvtapadhj8qqf95', botin: 'agent_6501m5k99cj6fwcbhjrg0y8qbpyk'};
+const WHO = {algarrobo: {n: 'Don Algarrobo', c: '#c4f080'}, lechu: {n: 'Profesor Lechu', c: '#ffc46b'}, botin: {n: 'Botín', c: '#7bffd6'}};
+const PITCH = {algarrobo: .6, lechu: 1.1, botin: 1.5};   // solo para la voz de respaldo del navegador
+
+/* ====== GUION: charla guiada cortita sobre la naturaleza (un turno por vez) ====== */
+const GUION = [
+  ['algarrobo', '¡Holaaa, amigos! Soy Don Algarrobo, el abuelo del monte. Hoy me acompañan dos grandes compañeros, y vamos a charlar sobre la naturaleza de Formosa.'],
+  ['lechu', '¡Uhhh, uhhh! Profesor Lechu, a sus órdenes. Y ojo, Don Algarrobo, que hoy vengo con muchos datos para lucirme.'],
+  ['botin', '¡Hola, hola! Soy Botín, el robot explorador. Mis sensores detectan aire fresco, buena sombra y mucha vida en este monte.'],
+  ['algarrobo', 'Y esa sombra es mía, criatura. Los árboles damos refugio a pájaros e insectos, y con las raíces cuidamos el suelo.'],
+  ['lechu', 'Muy bien dicho, aunque yo lo veo desde las alturas: el monte chaqueño es hogar de aves, carpinchos, yacarés y muchísimos animales más.'],
+  ['botin', 'Pregunta de explorador: ¿cómo podemos cuidar todo esto? Mi mochila ya está lista para tomar nota.'],
+  ['lechu', 'Muy simple: no tirar basura, cuidar el agua y no hacer fuego en el monte. ¡Esa respuesta merece un diez!'],
+  ['algarrobo', 'Y plantar un árbol nativo, que cada semilla es una historia nueva. Mis raíces guardan historias, y mis ramas siempre tienen algo para contar.'],
+  ['lechu', '¡Abrí bien los ojos, que siempre hay algo nuevo por aprender! Y esta vez, Don Algarrobo, te dejo el último chiste.'],
+  ['botin', '¡Misión cumplida! Gracias por explorar el monte con nosotros. ¡Hasta la próxima aventura!']
+];
+
+/* ====== ESCENA: escenario de Don Algarrobo ====== */
+const cv = document.getElementById('c');
+const R = new THREE.WebGLRenderer({canvas: cv, antialias: true, alpha: true});
+R.setPixelRatio(Math.min(devicePixelRatio, 2));
+const S = new THREE.Scene();
+S.fog = new THREE.Fog(0xcfe6ee, 22, 58);
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 100);
+S.add(new THREE.HemisphereLight(0xbfe3ff, 0x7a6a30, 1.25));
+const sun = new THREE.DirectionalLight(0xffe9b8, 2.3); sun.position.set(6, 10, 8); S.add(sun);
+
+const M = (c, r = .85) => new THREE.MeshStandardMaterial({color: c, roughness: r});
+const bark = M(0x7b4b2a, .95), skin = M(0xcf965a, .8), skinD = M(0xb97d45, .8), gray = M(0xd2cbbb, 1), white = M(0xffffff, .3), black = M(0x050505, .3);
+const leaves = [0x4f8a2b, 0x6aa332, 0x3f7a2a, 0x86b83a].map(c => M(c, .8));
+const sph = new THREE.SphereGeometry(1, 24, 16), cap = new THREE.CapsuleGeometry(.04, .3, 4, 8);
+const cyl = (a, b, h) => new THREE.CylinderGeometry(a, b, h, 18);
+const add = (p, g, m, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); p.add(o); return o; };
+const lerp = (a, b, k) => a + (b - a) * k, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+const mkBlink = () => { let n = 2, b = 0; return dt => { n -= dt; if (n < 0) { b = 1; n = 2 + Math.random() * 3.5; } b = Math.max(0, b - dt * 7); return Math.max(.08, 1 - Math.sin(b * Math.PI) * .95); }; };
+
+add(S, new THREE.CircleGeometry(60, 48), M(0x9aa84f, 1)).rotation.x = -Math.PI / 2;
+const grass = new THREE.InstancedMesh(new THREE.ConeGeometry(.08, .6, 4), M(0x6f9a35), 300), mx = new THREE.Matrix4();
+for (let i = 0; i < 300; i++) { const a = rnd() * 6.28, d = 2 + rnd() * 16; mx.makeTranslation(Math.cos(a) * d, .25, Math.sin(a) * d * .8 + 1); grass.setMatrixAt(i, mx); }
+S.add(grass);
+for (let i = 0; i < 14; i++) {
+  const g = new THREE.Group(), h = 3 + rnd() * 2;
+  add(g, cyl(.2, .3, h), bark, 0, h / 2); add(g, sph, leaves[i % 4], 0, h + .5, 0, 1.8, 1.1, 1.8);
+  g.position.set(-30 + i * 4.8 + rnd() * 2, 0, -14 - rnd() * 10); S.add(g);
+}
+
+/* ====== DON ALGARROBO ====== */
+function mkAlgarrobo() {
+  const g = new THREE.Group(), blink = mkBlink();
+  const tg = new THREE.CylinderGeometry(1, 1.8, 4.8, 40, 24), ps = tg.attributes.position;
+  for (let i = 0; i < ps.count; i++) {
+    const x = ps.getX(i), y = ps.getY(i), z = ps.getZ(i), a = Math.atan2(z, x);
+    const k = 1 + .06 * Math.sin(a * 7 + y * 1.4) + .035 * Math.sin(a * 15 - y * 2.3), fl = 1 + .35 * Math.pow(Math.max(0, (-1.2 - y) / 1.2), 2);
+    ps.setXYZ(i, x * k * fl, y, z * k * fl);
+  }
+  tg.computeVertexNormals(); add(g, tg, bark, 0, 2.4, 0);
+  const f = new THREE.Group(); f.position.set(0, 3.3, 0); g.add(f);
+  add(f, sph, skin, 0, 0, 1.1, .88, 1.05, .5); add(f, sph, skinD, 0, -.02, 1.6, .17, .22, .17);
+  const eyes = [], brows = [];
+  for (const s of [-1, 1]) {
+    const e = new THREE.Group(); e.position.set(s * .34, .25, 1.5); f.add(e);
+    add(e, sph, white, 0, 0, 0, .21, .21, .15); add(e, sph, M(0x5a3412, .4), 0, 0, .12, .12, .12, .05); add(e, sph, black, 0, 0, .16, .06, .06, .03);
+    eyes.push(e);
+    const b = add(f, cap, gray, s * .36, .56, 1.5, 1, 1, 1.4); b.rotation.z = Math.PI / 2; brows.push(b);
+    add(f, sph, gray, s * .13, -.2, 1.55, .15, .06, .07); add(f, sph, M(0xe0896a, .9), s * .5, -.2, 1.42, .16, .12, .06);
+  }
+  add(f, sph, gray, 0, -.82, 1.4, .3, .22, .1); add(f, sph, gray, 0, -1.05, 1.3, .14, .2, .1);
+  const mouth = new THREE.Group(); mouth.position.set(0, -.4, 1.5); f.add(mouth);
+  const inner = add(mouth, new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({color: 0x3a0f10, side: THREE.DoubleSide}), 0, .1, 0, .3, .05, .12);
+  add(mouth, new THREE.TorusGeometry(.32, .035, 8, 24, Math.PI), M(0x8a4a2a), 0, .14, .08).rotation.z = Math.PI;
+  const arms = [-1, 1].map(s => {
+    const p = new THREE.Group(); p.position.set(s * 1.15, 3.6, .35); g.add(p);
+    const c = new THREE.CatmullRomCurve3([[0, 0, 0], [.7, -.1, .3], [1.4, .35, .6], [2, .9, .8]].map(a => new THREE.Vector3(a[0] * s, a[1], a[2])));
+    add(p, new THREE.TubeGeometry(c, 14, .2, 8), bark);
+    const h = new THREE.Group(); h.position.copy(c.getPoint(1)); p.add(h); add(h, sph, skinD, 0, 0, 0, .27, .27, .2);
+    for (let k = 0; k < 3; k++) add(h, new THREE.CapsuleGeometry(.065, .26, 4, 8), skinD, (k - 1) * .14, .3, 0).rotation.z = -(k - 1) * .28;
+    return p;
+  });
+  const canopy = new THREE.Group(); g.add(canopy);
+  for (const [x, z] of [[-2, .3], [2.1, .2], [0, -1.2]]) add(canopy, new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(x * .1, 4.5, 0), new THREE.Vector3(x * .6, 5.8, z * .5), new THREE.Vector3(x, 6.8, z)]), 10, .32, 8), bark);
+  const pod = new THREE.CapsuleGeometry(.07, .4, 4, 8), podM = M(0xa6763a, .8);
+  for (let i = 0; i < 44; i++) {
+    const a = rnd() * 6.28, d = Math.sqrt(rnd()), x = Math.cos(a) * d * 4.8, z = Math.sin(a) * d * 3.8, y = 7.2 + Math.sqrt(1 - d * d) * 1.8 + (rnd() - .5), sc = 1.1 + rnd() * .8;
+    add(canopy, sph, leaves[i % 4], x, y, z, sc, sc * .65, sc);
+    if (i % 2 === 0 && y < 8.6) add(canopy, pod, podM, x + (rnd() - .5), y - sc * .6 - .2, z + sc * .5);
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = -.4 + i / 5 * (Math.PI + .8), cx = Math.cos(a), cz = Math.sin(a) * .9 + .2;
+    add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(cx * .8, 1.1, cz * .8), new THREE.Vector3(cx * 1.9, .35, cz * 1.9), new THREE.Vector3(cx * 3, .1, cz * 3)]), 12, .28, 8), bark);
+  }
+  return {g, up(t, dt, lv, spk, yaw) {
+    inner.scale.y = .04 + lv * .3; const b = blink(dt); eyes.forEach(e => e.scale.y = b);
+    brows.forEach(x => x.position.y = lerp(x.position.y, .56 + (spk ? .05 : 0) + lv * .06, .2));
+    g.rotation.y = lerp(g.rotation.y, yaw + Math.sin(t * .3) * .04, .05); g.rotation.z = Math.sin(t * .6) * .012;
+    canopy.rotation.z = Math.sin(t * .55) * .015;
+    arms.forEach((p, i) => { const s = i ? 1 : -1, k = spk ? .12 + lv * .5 : .03; p.rotation.z = lerp(p.rotation.z, s * (Math.sin(t * 2.1 + i * 1.7) * k + .05), .1); });
+  }};
+}
+
+/* ====== PROFESOR LECHU (sobre un tocón) ====== */
+function mkLechu() {
+  const g = new THREE.Group(), blink = mkBlink();
+  const brown = M(0x94572b, .95), dark = M(0x6e3d1d, .95), cream = M(0xf2dcb6, .95), cream2 = M(0xd9b48a, .95), orange = M(0xf0a02c, .6);
+  add(g, cyl(.9, 1.1, .9), bark, 0, .45, 0); add(g, cyl(.88, .88, .05), M(0xc9a26b), 0, .91, 0);
+  const o = new THREE.Group(); o.position.y = .9; g.add(o);
+  add(o, sph, brown, 0, 1.6, 0, 1.25, 1.5, 1); add(o, sph, cream, 0, 1.45, .62, .85, 1.15, .55);
+  for (const s of [-1, 1]) { add(o, new THREE.BoxGeometry(.5, 1.55, .3), M(0x4a5a2f, .9), s * .78, 1.6, .5).rotation.y = -s * .55; add(o, sph, orange, s * .5, .1, .5, .35, .14, .6); }
+  const bow = new THREE.Group(); bow.position.set(0, 2.55, .82); o.add(bow); const red = M(0xa3202e, .7);
+  for (const s of [-1, 1]) add(bow, new THREE.ConeGeometry(.3, .5, 12), red, s * .27, 0, 0).rotation.z = -s * Math.PI / 2;
+  add(bow, sph, red, 0, 0, .03, .13, .13, .1);
+  const wings = [-1, 1].map(s => {
+    const w = new THREE.Group(); w.position.set(s * 1.2, 2.45, .05); o.add(w);
+    add(w, sph, dark, 0, -1.05, 0, .36, 1.35, .75);
+    for (let k = 0; k < 4; k++) add(w, sph, k % 2 ? cream2 : brown, s * .1, -.7 - k * .38, .3, .3, .6, .5);
+    return w;
+  });
+  const head = new THREE.Group(); head.position.set(0, 3.4, 0); o.add(head);
+  add(head, sph, brown, 0, .15, 0, 1.45, 1.15, 1.15);
+  const eyes = [], irises = [], brows = [];
+  for (const s of [-1, 1]) {
+    add(head, sph, cream, s * .56, .2, 1, .68, .72, .25); add(head, new THREE.CapsuleGeometry(.14, .55, 4, 8), dark, s * .95, 1.3, .25).rotation.z = s * -.45;
+    const e = new THREE.Group(); e.position.set(s * .56, .26, 1.12); head.add(e);
+    add(e, sph, white, 0, 0, 0, .42, .42, .3);
+    const ir = new THREE.Group(); e.add(ir); add(ir, sph, M(0xe08a1c, .4), 0, 0, .28, .26, .26, .1); add(ir, sph, black, 0, 0, .36, .13, .13, .04); add(ir, sph, white, .07, .08, .4, .05, .05, .02);
+    eyes.push(e); irises.push(ir);
+    add(head, new THREE.TorusGeometry(.5, .035, 8, 32), M(0x111111, .4), s * .56, .26, 1.62);
+    const b = new THREE.Group(); b.position.set(s * .6, .98, 1.2); head.add(b);
+    add(b, new THREE.CapsuleGeometry(.07, .5, 4, 8), M(0xfaf0dc, 1), 0, 0, 0, 1, 1, 1.4).rotation.z = Math.PI / 2 - s * .2; brows.push(b);
+  }
+  add(head, cyl(.03, .03, .2), M(0x111111), 0, .32, 1.62).rotation.z = Math.PI / 2;
+  const beak = new THREE.Group(); beak.position.set(0, -.05, 1.36); head.add(beak);
+  add(beak, new THREE.ConeGeometry(.27, .65, 16), orange, 0, .06, .32, 1, 1, .75).rotation.x = Math.PI / 2;
+  const jaw = new THREE.Group(); jaw.position.y = -.04; beak.add(jaw);
+  add(jaw, new THREE.ConeGeometry(.22, .45, 14), M(0xd98a1e, .6), 0, -.05, .22, 1, 1, .6).rotation.x = Math.PI / 2; add(jaw, sph, M(0xc2505a, .7), 0, 0, .2, .12, .03, .16);
+  return {g, up(t, dt, lv, spk, yaw, age) {
+    jaw.rotation.x = lv * .55; const b = blink(dt); eyes.forEach(e => e.scale.y = b);
+    brows.forEach((x, i) => { x.rotation.z = (i ? 1 : -1) * .08; x.position.y = lerp(x.position.y, .98 + (!spk && yaw ? .05 : 0) + lv * .05, .2); });
+    irises.forEach(ir => ir.position.x = lerp(ir.position.x, yaw * .5, .1));
+    head.rotation.y = lerp(head.rotation.y, yaw * 1.6 + Math.sin(t * .5) * .05 + (spk ? Math.sin(t * 2.2) * .08 : 0), .06);
+    head.rotation.z = lerp(head.rotation.z, (!spk && yaw ? .14 : 0) + Math.sin(t * .8) * .02, .07);
+    o.scale.y = 1 + Math.sin(t * 1.3) * .006; g.rotation.y = lerp(g.rotation.y, yaw * .5, .05);
+    wings.forEach((w, i) => {
+      const s = i ? 1 : -1, k = spk ? .12 + lv * .5 : .03; let th = .12 + Math.sin(t * 2.3 + i * 2) * k;
+      if (s === 1 && spk && age < 1.6) th = 2.5 + Math.sin(t * 6) * .08;
+      w.rotation.z = lerp(w.rotation.z, s * th, .12);
+    });
+  }};
+}
+
+/* ====== BOTÍN (robot explorador, de la otra cuenta) ====== */
+function mkBotin() {
+  const g = new THREE.Group(), rb = new THREE.Group(); g.add(rb); g.scale.setScalar(.85); g.position.y = 1.62;
+  const W = M(0xf4f0e6, .45), GR = M(0x7dc242, .5), TL = M(0x3f95b3, .45), DK = M(0x2c3236, .6), glow = new THREE.MeshBasicMaterial({color: 0x59f0ff});
+  const hd = new THREE.Group(); hd.position.y = 1.25; rb.add(hd);
+  add(hd, sph, W, 0, 0, 0, 1.25, .9, .9);
+  const fc = document.createElement('canvas'); fc.width = 640; fc.height = 340; const fx = fc.getContext('2d');
+  const ft = new THREE.CanvasTexture(fc); ft.colorSpace = THREE.SRGBColorSpace;
+  add(hd, new THREE.SphereGeometry(1, 40, 24, Math.PI / 2 - .82, 1.64, Math.PI / 2 - .52, 1.04), new THREE.MeshBasicMaterial({map: ft}), 0, 0, 0, 1.265, .911, .911);
+  for (const s of [-1, 1]) { add(hd, cyl(.4, .4, .38), TL, s * 1.2, 0, 0).rotation.z = Math.PI / 2; add(hd, cyl(.26, .26, .4), glow, s * 1.2, 0, 0).rotation.z = Math.PI / 2; }
+  add(hd, cyl(.16, .2, .14), DK, 0, .9, 0); add(hd, cyl(.04, .04, .5), GR, 0, 1.2, 0);
+  const ant = add(hd, sph, new THREE.MeshBasicMaterial({color: 0x59f0ff}), 0, 1.5, 0, .15, .15, .15);
+  add(rb, cyl(.2, .26, .3), DK, 0, .3, 0); add(rb, sph, W, 0, -.5, 0, .78, .88, .64);
+  add(rb, new THREE.TorusGeometry(.62, .06, 10, 28), GR, 0, -.05, 0).rotation.x = Math.PI / 2;
+  add(rb, new THREE.BoxGeometry(1.05, 1.15, .5), M(0x56602f, .8), 0, -.35, -.72); add(rb, cyl(.22, .22, 1.1), M(0x8a6a3e, .9), 0, .35, -.78).rotation.z = Math.PI / 2;
+  add(rb, new THREE.CircleGeometry(.3, 24), M(0x103a2a), 0, -.3, .62);
+  const arm = s => {
+    const r = new THREE.Group(); r.position.set(s * .88, -.1, .05); rb.add(r);
+    add(r, sph, DK, 0, 0, 0, .2, .2, .2); add(r, cyl(.15, .15, .5), W, 0, -.3, 0);
+    const f = new THREE.Group(); f.position.y = -.58; r.add(f);
+    add(f, sph, DK, 0, 0, 0, .17, .17, .17); add(f, cyl(.14, .13, .45), W, 0, -.28, 0); add(f, sph, W, 0, -.62, 0, .2, .22, .14);
+    return {r, f};
+  };
+  const aR = arm(1), aL = arm(-1);
+  for (const s of [-1, 1]) { add(rb, cyl(.17, .17, .5), W, s * .36, -1.45, 0); add(rb, sph, W, s * .38, -1.78, .14, .4, .22, .56); add(rb, sph, GR, s * .38, -1.9, .14, .41, .08, .57); }
+  function face(t, bl, lx, ly, mo, st) {
+    const c = fx, Wd = 640, H = 340; c.fillStyle = '#04100d'; c.fillRect(0, 0, Wd, H);
+    c.fillStyle = 'rgba(123,255,214,.05)'; for (let y = 0; y < H; y += 4) c.fillRect(0, y, Wd, 1);
+    [[185, 150], [455, 150]].forEach(([x, y]) => {
+      c.save(); c.translate(x, y); c.scale(1, Math.max(.06, 1 - bl * .94));
+      c.shadowColor = '#5dffc6'; c.shadowBlur = 26; c.fillStyle = '#7bffd6'; c.beginPath(); c.arc(0, 0, 62, 0, 7); c.fill(); c.shadowBlur = 0;
+      c.fillStyle = '#0a3a2a'; c.beginPath(); c.arc(lx * 14, ly * 12, 42, 0, 7); c.fill();
+      c.fillStyle = '#02100b'; c.beginPath(); c.arc(lx * 18, ly * 15, 27, 0, 7); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(lx * 18 - 14, ly * 15 - 16, 8, 0, 7); c.fill(); c.restore();
+      c.save(); c.strokeStyle = '#7bffd6'; c.lineWidth = 9; c.lineCap = 'round'; c.shadowColor = '#5dffc6'; c.shadowBlur = 14;
+      const by = st === 'listening' ? 50 : 62; c.beginPath(); c.moveTo(x - 50, by + 14); c.quadraticCurveTo(x, by - 12, x + 50, by + 10); c.stroke(); c.restore();
+    });
+    c.save(); c.shadowColor = '#5dffc6'; c.shadowBlur = 20; c.fillStyle = c.strokeStyle = '#7bffd6'; c.lineCap = 'round';
+    if (mo > .05) { const h = 10 + mo * 70, w = 62 + mo * 24; c.beginPath(); c.ellipse(320, 264, w, h, 0, 0, 7); c.fill(); c.shadowBlur = 0; c.fillStyle = '#0a3a2a'; c.beginPath(); c.ellipse(320, 268 + h * .35, w * .6, h * .45, 0, 0, 7); c.fill(); }
+    else { c.lineWidth = 11; c.beginPath(); c.moveTo(250, 254); c.quadraticCurveTo(320, 320, 390, 254); c.stroke(); }
+    c.restore(); ft.needsUpdate = true;
+  }
+  const blink = mkBlink(); let lx = 0;
+  return {g, up(t, dt, lv, spk, yaw, age, phase) {
+    lx = lerp(lx, yaw * 2.2, .1); face(t, 1 - blink(dt), lx, 0, lv, spk ? 'speaking' : 'listening');
+    rb.position.y = Math.sin(t * 1.8) * .05 + (spk ? Math.abs(Math.sin(t * 5)) * .04 * lv : 0);
+    g.rotation.y = lerp(g.rotation.y, yaw * .8, .05);
+    hd.rotation.z = lerp(hd.rotation.z, spk ? Math.sin(t * 2.2) * .06 : (yaw ? .14 : 0), .08); hd.rotation.y = lerp(hd.rotation.y, yaw * 1.4, .08);
+    const p = spk ? .6 + lv * .4 : .4 + Math.sin(t * 2) * .12; ant.material.color.setHSL(.5, 1, .35 + p * .35); ant.scale.setScalar(.12 + p * .06);
+    let rz, rf, lz, lf;
+    if (spk) { rz = 1.1 + Math.sin(t * 3.1) * .5 * (.4 + lv); rf = .5 + Math.sin(t * 3.1 + 1) * .5; lz = -(.7 + Math.sin(t * 2.6 + 2) * .45 * (.4 + lv)); lf = -(.4 + Math.sin(t * 2.6 + 3) * .4); }
+    else if (phase === 'idle') { rz = 2.35 + Math.sin(t * 2.4) * .08; rf = .35 + Math.sin(t * 6) * .35; lz = -.25; lf = -.15; }
+    else { rz = .22 + Math.sin(t * 1.5) * .04; rf = .1; lz = -.22; lf = -.1; }
+    const k = Math.min(1, dt * 7);
+    aR.r.rotation.z = lerp(aR.r.rotation.z, rz, k); aR.f.rotation.z = lerp(aR.f.rotation.z, rf, k); aL.r.rotation.z = lerp(aL.r.rotation.z, lz, k); aL.f.rotation.z = lerp(aL.f.rotation.z, lf, k);
+  }};
+}
+
+const ch = {algarrobo: mkAlgarrobo(), lechu: mkLechu(), botin: mkBotin()};
+for (const k in ch) S.add(ch[k].g);
+ch.algarrobo.g.position.set(0, 0, -1.5); ch.lechu.g.position.z = 1.3; ch.botin.g.position.z = 1.3;
+const camP = {x: 0};
+function resize() {
+  const w = innerWidth, h = innerHeight, a = w / h, f = clamp(a / 1.3, .55, 1);
+  R.setSize(w, h, false); cam.aspect = a;
+  ch.lechu.g.position.x = 5 * f; ch.botin.g.position.x = -5 * f;
+  cam.userData.d = clamp(15 / (.728 * a) + 2, 16, 30); cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+/* ====== ORQUESTADOR: un solo personaje habla por vez ====== */
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let phase = 'idle', cur = null, turnAt = 0, stopFlag = false, fb = false, Conv = null;
+const live = {}, lvl = {algarrobo: 0, lechu: 0, botin: 0};
+
+function viaAgente(k, texto) {
+  return new Promise(async (ok, fail) => {
+    let done = false, spoke = false, c = null;
+    const fin = e => { if (done) return; done = true; clearTimeout(tm); live[k] = null; try { c && c.endSession(); } catch (x) {} e ? fail(e) : ok(); };
+    const tm = setTimeout(() => fin(new Error('tiempo agotado')), 50000);
+    try {
+      Conv = Conv || (await import('https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm')).Conversation;
+      c = await Conv.startSession({
+        agentId: AG[k], connectionType: 'websocket', overrides: {agent: {firstMessage: texto}},
+        onModeChange: ({mode}) => { if (mode === 'speaking') spoke = true; else if (spoke) setTimeout(() => fin(), 500); },
+        onDisconnect: () => fin(spoke ? null : new Error('desconectado')),
+        onError: e => fin(new Error(String(e && e.message || e)))
+      });
+      live[k] = c; try { c.setMicMuted(true); } catch (x) {}
+      if (done) try { c.endSession(); } catch (x) {}
+    } catch (e) { fin(e); }
+  });
+}
+function viaNavegador(k, txt) {
+  return new Promise(ok => {
+    if (!('speechSynthesis' in window)) { setTimeout(ok, Math.max(2500, txt.length * 65)); return; }
+    const u = new SpeechSynthesisUtterance(txt); u.lang = 'es-AR'; u.pitch = PITCH[k];
+    const v = speechSynthesis.getVoices().find(v => /^es/i.test(v.lang)); if (v) u.voice = v;
+    u.onend = u.onerror = () => { fb = false; ok(); }; fb = true; speechSynthesis.speak(u);
+  });
+}
+async function hablar(k, txt) {
+  cur = k; turnAt = performance.now(); $('who').textContent = WHO[k].n; $('who').style.color = WHO[k].c; $('cap').textContent = txt;
+  try { await viaAgente(k, txt); }
+  catch (e) {
+    if (stopFlag) return;
+    console.warn('Voz de ' + k + ' no disponible, uso la del navegador:', e);
+    $('status').textContent = 'Aviso: ' + WHO[k].n + ' habló con la voz del navegador (su agente no aceptó el mensaje).';
+    await viaNavegador(k, txt);
+  }
+  cur = null; if (!stopFlag) await sleep(700);
+}
+async function charla() {
+  stopFlag = false; $('go').style.display = 'none'; $('stop').style.display = ''; $('go').disabled = true; $('status').textContent = 'Pidiendo permiso de audio…';
+  try { (await navigator.mediaDevices.getUserMedia({audio: true})).getTracks().forEach(t => t.stop()); }
+  catch (e) { $('status').textContent = 'Necesito el permiso del micrófono (queda silenciado). Activalo en el navegador y probá de nuevo.'; fin(); return; }
+  phase = 'run'; $('status').textContent = '';
+  for (let i = 0; i < GUION.length && !stopFlag; i++) {
+    const msg = $('status').textContent.startsWith('Aviso') ? $('status').textContent + ' ' : '';
+    if (!msg) $('status').textContent = 'Turno ' + (i + 1) + ' de ' + GUION.length + ' — hablan de a uno, sin interrumpirse';
+    await hablar(...GUION[i]);
+  }
+  $('who').textContent = ''; $('cap').textContent = stopFlag ? '' : '¡Fin de la charla! Gracias por visitar el monte.';
+  $('status').textContent = stopFlag ? 'Charla detenida.' : 'Podés volver a verla cuando quieras.';
+  fin();
+}
+function fin() { phase = 'idle'; cur = null; $('go').style.display = ''; $('go').disabled = false; $('go').textContent = '↻ Ver de nuevo'; $('stop').style.display = 'none'; }
+$('go').onclick = charla;
+$('stop').onclick = () => { stopFlag = true; try { speechSynthesis.cancel(); } catch (e) {} for (const k in live) try { live[k] && live[k].endSession(); } catch (e) {} };
+
+/* ====== BUCLE DE ANIMACIÓN ====== */
+let last = performance.now();
+R.setAnimationLoop(now => {
+  const t = now / 1000, dt = Math.min(.05, (now - last) / 1000); last = now;
+  for (const k in ch) {
+    const spk = cur === k; let tg = 0;
+    if (spk) { if (fb) tg = .25 + .5 * Math.abs(Math.sin(t * 13)); else if (live[k]) { try { tg = Math.min(1, live[k].getOutputVolume() * 2.4); } catch (e) {} } }
+    lvl[k] = lerp(lvl[k], tg, .4);
+    const yaw = cur && !spk ? clamp((ch[cur].g.position.x - ch[k].g.position.x) * .06, -.4, .4) : 0;
+    ch[k].up(t, dt, lvl[k], spk, yaw, (now - turnAt) / 1000, phase);
+  }
+  camP.x = lerp(camP.x, cur ? ch[cur].g.position.x * .3 : 0, .03);
+  cam.position.set(camP.x, 4.2, cam.userData.d); cam.lookAt(camP.x * .6, 4.3, 0);
+  R.render(S, cam);
+});
+</script>
+</body>
+</html>

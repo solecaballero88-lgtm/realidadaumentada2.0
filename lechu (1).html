@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Profesor Lechu — El sabio del monte</title>
+<meta name="description" content="Conversá en voz alta con el Profesor Lechu, una lechuza digital del monte formoseño.">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{background:linear-gradient(#3f9bec 0%,#8fcdf3 60%,#d9f0f7 100%)}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+header{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 8px;text-align:center;pointer-events:none}
+h1{margin:0;font:700 clamp(1.1rem,3.6vw,1.9rem)/1.15 Georgia,"Times New Roman",serif;color:#3b2412;text-shadow:0 1px 0 #fff8,0 2px 8px #fff9}
+header p{margin:2px 0 0;font-size:clamp(.75rem,2.4vw,.95rem);color:#2f4a22;font-style:italic;text-shadow:0 1px 6px #fffa}
+#panel{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;flex-direction:column;align-items:center;gap:8px;background:linear-gradient(transparent,#2a2a14d0 45%)}
+#cap{min-height:2.6em;max-width:640px;text-align:center;color:#fff;font-size:clamp(.9rem,2.8vw,1.05rem);line-height:1.35;text-shadow:0 1px 4px #000a}
+#status{color:#ffe9a8;font-weight:600;font-size:.95rem;text-shadow:0 1px 4px #000a}
+.btns{position:relative;display:flex;gap:10px;align-items:center;justify-content:center}
+button{font:700 clamp(1rem,3.4vw,1.2rem) system-ui,sans-serif;border:0;border-radius:999px;padding:14px 26px;cursor:pointer;min-height:52px;box-shadow:0 4px 14px #0006}
+#talk{background:#e8873a;color:#fff}
+#talk:hover:not(:disabled){background:#f79a4c}
+#end{background:#fff;color:#8a2a1a;display:none}
+button:disabled{opacity:.6;cursor:wait}
+button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#ring{position:absolute;inset:-6px;border-radius:999px;border:3px solid #7dff9b;opacity:0;pointer-events:none;transition:opacity .2s}
+.listening #ring{opacity:.9}
+#ia{color:#e9f3d8;font-size:.78rem;text-align:center;max-width:560px;line-height:1.3;opacity:.95}
+#ia b{background:#fff3;border-radius:6px;padding:1px 6px}
+.volver{position:fixed;z-index:20;top:calc(env(safe-area-inset-top,0px) + 8px);left:10px;background:#fffd;color:#2b1d10;text-decoration:none;font:700 .85rem system-ui,sans-serif;border-radius:999px;padding:7px 13px;box-shadow:0 2px 8px #0003}.volver:focus-visible{outline:3px solid #f2a93b}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+</head>
+<body>
+<a class="volver" href="index.html">← Inicio</a>
+<canvas id="c" aria-label="Profesor Lechu, una lechuza con anteojos y moño animada en 3D"></canvas>
+<header>
+  <h1>Profesor Lechu — El sabio del monte</h1>
+  <p>«¡Abrí bien los ojos, que siempre hay algo nuevo por aprender!»</p>
+</header>
+<div id="panel">
+  <div id="cap" aria-live="polite"></div>
+  <div id="status">Tocá el botón y charlá con él en voz alta</div>
+  <div class="btns" id="btns">
+    <span id="ring"></span>
+    <button id="talk">🎙️ Hablar con el Profesor Lechu</button>
+    <button id="end">Finalizar conversación</button>
+  </div>
+  <div id="ia"><b>IA</b> El Profesor Lechu es un personaje ficticio creado con inteligencia artificial. Tu voz se procesa con ElevenLabs para poder conversar.</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ====== CONFIGURACIÓN ====== */
+const AGENT_ID = 'agent_1101m5k81rs0eyvtapadhj8qqf95'; // ID público del agente (no es una clave secreta)
+
+/* ====== ESCENA ====== */
+const cv = document.getElementById('c');
+const R = new THREE.WebGLRenderer({canvas: cv, antialias: true, alpha: true});
+R.setPixelRatio(Math.min(devicePixelRatio, 2));
+R.shadowMap.enabled = true;
+const S = new THREE.Scene();
+S.fog = new THREE.Fog(0xcfe6ee, 25, 70);
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 120);
+S.add(new THREE.HemisphereLight(0xcfe8ff, 0x8a7a40, 1.3));
+const sun = new THREE.DirectionalLight(0xffe2a8, 2.6);
+sun.position.set(5, 9, 8); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, {left: -8, right: 8, top: 8, bottom: -4});
+S.add(sun);
+
+const M = (c, r = .85) => new THREE.MeshStandardMaterial({color: c, roughness: r});
+const bark = M(0x7b4b2a, .95), brown = M(0x94572b, .95), dark = M(0x6e3d1d, .95), cream = M(0xf2dcb6, .95), cream2 = M(0xd9b48a, .95);
+const orange = M(0xf0a02c, .6), leaves = [0x4f9a2b, 0x6bb232, 0x3f8a2a, 0x92c93e].map(c => M(c, .8));
+const sph = new THREE.SphereGeometry(1, 28, 18);
+const add = (p, g, m, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => {
+  const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz);
+  o.castShadow = true; p.add(o); return o;
+};
+let seed = 11; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
+// Fondo: lago, colinas y árboles lejanos
+const lake = add(S, new THREE.PlaneGeometry(200, 60), M(0x4fa8d8, .3), 0, -7, -40); lake.rotation.x = -Math.PI / 2; lake.castShadow = false;
+for (let i = 0; i < 16; i++) {
+  const g = new THREE.Group(), h = 2 + rnd() * 2;
+  add(g, new THREE.CylinderGeometry(.25, .35, h, 6), bark, 0, h / 2);
+  add(g, sph, leaves[i % 4], 0, h + 1, 0, 2.2, 1.5, 2.2);
+  g.position.set(-45 + i * 6 + rnd() * 3, -7, -32 - rnd() * 8); S.add(g);
+}
+add(S, sph, M(0x5e9a46, 1), -10, -9, -24, 30, 6, 8); add(S, sph, M(0x6aa84e, 1), 30, -9, -26, 30, 6, 8);
+
+// Árbol grande a la izquierda, rama (percha) y carteles
+const tg = new THREE.CylinderGeometry(1.5, 1.9, 18, 28, 14), ps = tg.attributes.position;
+for (let i = 0; i < ps.count; i++) {
+  const x = ps.getX(i), y = ps.getY(i), z = ps.getZ(i), a = Math.atan2(z, x);
+  const k = 1 + .06 * Math.sin(a * 6 + y * 1.1) + .035 * Math.sin(a * 13 - y * 2);
+  ps.setXYZ(i, x * k, y, z * k);
+}
+tg.computeVertexNormals();
+add(S, tg, bark, -6.6, 4, 0);
+const branch = add(S, new THREE.CylinderGeometry(.5, .8, 18, 14), bark, 2.5, -.55, 0); branch.rotation.z = Math.PI / 2 + .04;
+const mkSign = (txt, font, w, h, px, py, rot) => {
+  const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w);
+  const g = c.getContext('2d');
+  g.fillStyle = '#7a4f2d'; g.fillRect(0, 0, c.width, c.height);
+  g.strokeStyle = '#5a371c'; g.lineWidth = 3;
+  for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(0, c.height * i / 4); g.lineTo(c.width, c.height * i / 4); g.stroke(); }
+  g.fillStyle = '#f3e2bd'; g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const L = txt.split('|'); L.forEach((l, i) => g.fillText(l, c.width / 2, c.height * (i + 1) / (L.length + 1)));
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const m = add(S, new THREE.BoxGeometry(w, h, .25), new THREE.MeshStandardMaterial({map: t, roughness: .9}), px, py, 1.9); m.rotation.z = rot;
+};
+mkSign('PROFESOR|LECHU', 'bold 84px Georgia, serif', 3.8, 2.0, -5.7, 4.2, .03);
+mkSign('El sabio|del monte', 'italic 62px Georgia, serif', 3.1, 1.4, -5.9, 2.3, -.02);
+
+// Follaje
+for (let i = 0; i < 36; i++) {
+  const s = 1.3 + rnd() * 1.3;
+  add(S, sph, leaves[i % 4], -11 + rnd() * 17, 6.2 + rnd() * 5, -4 + rnd() * 5, s, s * .6, s);
+}
+for (let i = 0; i < 9; i++) add(S, sph, leaves[i % 4], -9.5 + rnd() * 5, -.5 + rnd() * 4.5, 2.4 + rnd() * .8, .55, .3, .15).rotation.z = rnd() * 3;
+for (let i = 0; i < 7; i++) add(S, sph, leaves[i % 4], 2 + rnd() * 6, -2 + rnd(), 3, .9, .25, .5).rotation.z = rnd() - .5;
+
+/* ====== PROFESOR LECHU ====== */
+const owl = new THREE.Group(); S.add(owl);
+add(owl, sph, brown, 0, 1.6, 0, 1.25, 1.5, 1.0);                   // cuerpo
+add(owl, sph, cream, 0, 1.45, .62, .85, 1.15, .55);                // pecho
+for (let i = 0; i < 14; i++) add(owl, sph, M(0xc9822e), (rnd() - .5) * 1.1, .7 + rnd() * 1.5, 1.12 - Math.abs(rnd() - .5) * .3, .06, .08, .03);
+const vest = M(0x4a5a2f, .9);
+for (const s of [-1, 1]) { const v = add(owl, new THREE.BoxGeometry(.5, 1.55, .3), vest, s * .78, 1.6, .5); v.rotation.y = -s * .55; }
+add(owl, sph, bark, 0, 1.95, -.6, .9, 1.1, .5);                    // espalda
+// Moño rojo
+const red = M(0xa3202e, .7), bow = new THREE.Group(); bow.position.set(0, 2.55, .82); owl.add(bow);
+for (const s of [-1, 1]) { const w = add(bow, new THREE.ConeGeometry(.3, .5, 12), red, s * .27, 0, 0); w.rotation.z = -s * Math.PI / 2; }
+add(bow, sph, red, 0, 0, .03, .13, .13, .1);
+// Patas con garras
+for (const s of [-1, 1]) for (let k = -1; k <= 1; k++) {
+  const toe = add(owl, new THREE.CapsuleGeometry(.08, .34, 4, 8), orange, s * .5 + k * .16, .12, .85); toe.rotation.x = Math.PI / 2; toe.rotation.z = -k * .2;
+  const cl = add(owl, new THREE.ConeGeometry(.06, .2, 6), M(0x111111), s * .5 + k * .16 + k * .06, .1, 1.18); cl.rotation.x = Math.PI / 2;
+}
+add(owl, new THREE.CylinderGeometry(.14, .12, .6, 8), orange, -.5, .45, .3); add(owl, new THREE.CylinderGeometry(.14, .12, .6, 8), orange, .5, .45, .3);
+
+// Alas (brazos)
+const wings = [-1, 1].map(s => {
+  const w = new THREE.Group(); w.position.set(s * 1.2, 2.45, .05); owl.add(w);
+  add(w, sph, dark, 0, -1.05, 0, .36, 1.35, .75);
+  for (let k = 0; k < 4; k++) add(w, sph, k % 2 ? cream2 : brown, s * .1, -.7 - k * .38, .3, .3, .6, .5);
+  return w;
+});
+
+// Cabeza
+const head = new THREE.Group(); head.position.set(0, 3.4, 0); owl.add(head);
+add(head, sph, brown, 0, .15, 0, 1.45, 1.15, 1.15);
+for (const s of [-1, 1]) {
+  add(head, sph, cream, s * .56, .2, 1.0, .68, .72, .25);                       // disco facial
+  const t = add(head, new THREE.CapsuleGeometry(.14, .55, 4, 8), dark, s * .95, 1.3, .25); t.rotation.z = s * -.45;   // penacho
+  const st = add(head, new THREE.CapsuleGeometry(.05, .4, 4, 8), cream, s * .85, 1.38, .4); st.rotation.z = s * -.45;
+}
+const eyes = [], irises = [], brows = [];
+for (const s of [-1, 1]) {
+  const e = new THREE.Group(); e.position.set(s * .56, .26, 1.12); head.add(e);
+  add(e, sph, M(0xffffff, .3), 0, 0, 0, .42, .42, .3);
+  const ir = new THREE.Group(); e.add(ir);
+  add(ir, sph, M(0xe08a1c, .4), 0, 0, .28, .26, .26, .1);
+  add(ir, sph, M(0x050505, .3), 0, 0, .36, .13, .13, .04);
+  add(ir, sph, M(0xffffff, .1), .07, .08, .4, .05, .05, .02);
+  eyes.push(e); irises.push(ir);
+  const g = add(head, new THREE.TorusGeometry(.5, .035, 8, 32), M(0x111111, .4), s * .56, .26, 1.62); g.castShadow = false;   // anteojos
+  const b = new THREE.Group(); b.position.set(s * .6, .98, 1.2); head.add(b);
+  const bm = add(b, new THREE.CapsuleGeometry(.07, .5, 4, 8), M(0xfaf0dc, 1), 0, 0, 0, 1, 1, 1.4); bm.rotation.z = Math.PI / 2 - s * .2;
+  brows.push(b);
+}
+const bridge = add(head, new THREE.CylinderGeometry(.03, .03, .2, 6), M(0x111111), 0, .32, 1.62); bridge.rotation.z = Math.PI / 2;
+// Pico (mandíbula móvil)
+const beak = new THREE.Group(); beak.position.set(0, -.05, 1.36); head.add(beak);
+const up = add(beak, new THREE.ConeGeometry(.27, .65, 16), orange, 0, .06, .32, 1, 1, .75); up.rotation.x = Math.PI / 2;
+const jaw = new THREE.Group(); jaw.position.set(0, -.04, 0); beak.add(jaw);
+add(jaw, new THREE.ConeGeometry(.22, .45, 14), M(0xd98a1e, .6), 0, -.05, .22, 1, 1, .6).rotation.x = Math.PI / 2;
+add(jaw, sph, M(0xc2505a, .7), 0, .0, .2, .12, .03, .16);
+
+/* ====== ANIMACIÓN ====== */
+let state = 'idle', level = 0, worry = 0, laugh = 0, surprise = 0, worryT = 0, laughT = 0, surpriseT = 0, raiseT = 0, raise = 0, blink = 0, nextBlink = 2, conv = null;
+const look = {x: 0, y: 0};
+addEventListener('pointermove', e => { look.x = e.clientX / innerWidth - .5; look.y = e.clientY / innerHeight - .5; });
+const lerp = (a, b, k) => a + (b - a) * k;
+const ring = document.getElementById('ring');
+
+function resize() {
+  const w = innerWidth, h = innerHeight, a = w / h;
+  R.setSize(w, h, false); cam.aspect = a;
+  const d = Math.min(17, Math.max(11, 7.8 / (.364 * a)));
+  cam.position.set(0, 1.9, d); cam.lookAt(0, 1.5, 0); cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+let last = performance.now();
+R.setAnimationLoop(now => {
+  const t = now / 1000, dt = Math.min(.05, (now - last) / 1000); last = now;
+  const speaking = state === 'speaking', listening = state === 'listening';
+
+  let target = 0;
+  if (conv && speaking) { try { target = Math.min(1, conv.getOutputVolume() * 2.4); } catch (e) {} }
+  level = lerp(level, target, .4);
+  worryT = Math.max(0, worryT - dt); laughT = Math.max(0, laughT - dt); surpriseT = Math.max(0, surpriseT - dt); raiseT = Math.max(0, raiseT - dt);
+  worry = lerp(worry, worryT > 0 ? 1 : 0, .06);
+  laugh = lerp(laugh, laughT > 0 ? 1 : 0, .1);
+  surprise = lerp(surprise, surpriseT > 0 ? 1 : 0, .15);
+  raise = lerp(raise, raiseT > 0 ? 1 : 0, .08);
+
+  // Pico sincronizado con la voz
+  jaw.rotation.x = level * .55 + laugh * (.1 + Math.abs(Math.sin(t * 16)) * .1);
+  beak.rotation.x = -level * .06;
+
+  // Cejas, parpadeo, mirada
+  brows.forEach((b, i) => {
+    const s = i === 0 ? -1 : 1;
+    b.rotation.z = s * (-worry * .4 + .08 + laugh * .1) ;
+    b.position.y = lerp(b.position.y, .98 + (listening ? .06 : 0) + surprise * .18 + level * .05 + worry * .03, .2);
+  });
+  nextBlink -= dt;
+  if (nextBlink < 0) { blink = 1; nextBlink = 2 + Math.random() * 3.5; }
+  blink = Math.max(0, blink - dt * 7);
+  const lid = Math.max(.08, 1 - Math.sin(blink * Math.PI) * .95) * (1 - laugh * .35) * (1 + surprise * .15);
+  eyes.forEach(e => e.scale.y = lid);
+  irises.forEach(ir => { ir.position.x = lerp(ir.position.x, look.x * .2, .1); ir.position.y = lerp(ir.position.y, -look.y * .15, .1); });
+
+  // Cabeza: gira al escuchar, se mueve al hablar
+  head.rotation.z = lerp(head.rotation.z, (listening ? .2 : 0) + Math.sin(t * .8) * .02 + (speaking ? Math.sin(t * 3) * .03 * level : 0), .07);
+  head.rotation.y = lerp(head.rotation.y, (listening ? .28 : 0) + Math.sin(t * .5) * .05 + (speaking ? Math.sin(t * 2.2) * .08 : 0), .06);
+  head.rotation.x = lerp(head.rotation.x, surprise * -.1 + level * .05, .1);
+
+  // Cuerpo y alas
+  owl.scale.y = 1 + Math.sin(t * 1.3) * .006;
+  owl.position.y = laugh ? Math.abs(Math.sin(t * 9)) * .06 : 0;
+  owl.rotation.y = Math.sin(t * .35) * .04;
+  wings.forEach((w, i) => {
+    const s = i === 0 ? -1 : 1, g = speaking ? .12 + level * .5 : .03;
+    let th = .12 + Math.sin(t * 1.1 + i) * .03 + Math.sin(t * 2.3 + i * 2) * g + (listening ? -.04 : 0);
+    if (s === 1) th = lerp(th, 2.55 + Math.sin(t * 6) * .08, raise);
+    if (surprise > .1) th += surprise * .35;
+    w.rotation.z = lerp(w.rotation.z, s * th, .12);
+    w.rotation.x = lerp(w.rotation.x, Math.sin(t * 1.7 + i) * g * .5, .1);
+  });
+
+  if (listening && conv) { try { ring.style.transform = 'scale(' + (1 + conv.getInputVolume() * .25) + ')'; } catch (e) {} }
+  R.render(S, cam);
+});
+
+/* ====== INTERFAZ Y CONVERSACIÓN ====== */
+const $ = id => document.getElementById(id);
+const talk = $('talk'), end = $('end'), status = $('status'), capEl = $('cap'), btns = $('btns');
+const showIdle = () => {
+  state = 'idle'; conv = null; talk.style.display = ''; talk.disabled = false; end.style.display = 'none';
+  btns.classList.remove('listening'); ring.style.transform = '';
+  status.textContent = 'Tocá el botón y charlá con él en voz alta';
+};
+
+async function start() {
+  talk.disabled = true; status.textContent = 'Llamando al Profesor Lechu…'; capEl.textContent = '';
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({audio: true});
+    st.getTracks().forEach(t => t.stop());
+  } catch (e) {
+    status.textContent = 'Necesito permiso para usar el micrófono. Activalo en tu navegador y probá de nuevo.';
+    talk.disabled = false; return;
+  }
+  try {
+    const {Conversation} = await import('https://cdn.jsdelivr.net/npm/@elevenlabs/client/+esm');
+    const opts = {
+      agentId: AGENT_ID,
+      onConnect: () => { talk.style.display = 'none'; end.style.display = ''; state = 'listening'; btns.classList.add('listening'); raiseT = 2.5; },
+      onDisconnect: showIdle,
+      onError: e => { console.error(e); status.textContent = 'Ups, algo falló en la conexión. Probá de nuevo.'; },
+      onModeChange: ({mode}) => {
+        state = mode === 'speaking' ? 'speaking' : 'listening';
+        btns.classList.toggle('listening', state === 'listening');
+        status.textContent = state === 'speaking' ? 'El Profesor Lechu está hablando…' : 'El Profesor Lechu te está escuchando…';
+      },
+      onMessage: ({message, source}) => {
+        capEl.textContent = message;
+        if (source === 'ai') {
+          if (/deforest|tala|incendio|contamin|sequ[ií]a|extinci|basura|calentamiento|cambio clim/i.test(message)) worryT = 6;
+          if (/ja,? ?ja|chiste/i.test(message)) laughT = 3;
+          if (/barbaridad|sorprend|no me lo esperaba|¡vaya/i.test(message)) surpriseT = 1.8;
+          if (/prestá atención|a ver, a ver|pregunta/i.test(message)) raiseT = 2;
+        }
+      }
+    };
+    try { conv = await Conversation.startSession({...opts, connectionType: 'webrtc'}); }
+    catch (e) { console.warn('WebRTC falló, probando WebSocket', e); conv = await Conversation.startSession({...opts, connectionType: 'websocket'}); }
+  } catch (e) {
+    console.error(e); status.textContent = 'No pude conectarme con el Profesor Lechu. Revisá tu internet y probá de nuevo.';
+    talk.disabled = false;
+  }
+}
+talk.onclick = start;
+end.onclick = async () => { end.disabled = true; try { await conv?.endSession(); } catch (e) {} end.disabled = false; showIdle(); capEl.textContent = ''; };
+</script>
+</body>
+</html>
